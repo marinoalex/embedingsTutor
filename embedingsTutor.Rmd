@@ -1,0 +1,81 @@
+---
+title: "Embedings Tutorial"
+author: "Alex Marino"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidytext)
+library(dplyr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library(tidytext)
+library(dplyr)
+library(widyr)
+
+load(url("https://cbail.github.io/Elected_Official_Tweets.Rdata"))
+elected_no_retweets <- elected_official_tweets %>%
+  filter(is_retweet == F) %>%
+  select(c("text"))
+
+#create tweet id
+elected_no_retweets$postID<-row.names(elected_no_retweets)
+head(elected_no_retweets)
+
+#create context window with length 8
+tidy_skipgrams <- elected_no_retweets %>%
+  unnest_tokens(ngram, text, token = "ngrams", n = 8) %>%
+  mutate(ngramID = row_number()) %>% 
+  tidyr::unite(skipgramID, postID, ngramID) %>%
+  unnest_tokens(word, ngram)
+
+#calculate unigram probabilities (used to normalize skipgram probabilities later)
+unigram_probs <- elected_no_retweets %>%
+  unnest_tokens(word, text) %>%
+  count(word, sort = TRUE) %>%
+  mutate(p = n / sum(n))
+
+
+#calculate probabilities
+skipgram_probs <- tidy_skipgrams %>%
+  pairwise_count(word, skipgramID, diag = TRUE, sort = TRUE) %>%
+  dplyr::mutate(p = n / sum(n))
+
+#normalize probabilities
+normalized_prob <- skipgram_probs %>%
+  filter(n > 20) %>%
+  rename(word1 = item1, word2 = item2) %>%
+  left_join(unigram_probs %>%
+              select(word1 = word, p1 = p),
+            by = "word1") %>%
+  left_join(unigram_probs %>%
+              select(word2 = word, p2 = p),
+            by = "word2") %>%
+  mutate(p_together = p / p1 / p2)
+
+
+normalized_prob[2005:2010,]
+
+normalized_prob %>% 
+    filter(word1 == "trump") %>%
+    arrange(-p_together)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
