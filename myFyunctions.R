@@ -1,11 +1,13 @@
 search_synonyms <- function(word_vectors, selected_vector) {
   
   similarities <- word_vectors %*% selected_vector %>%
-    tidy() %>%
-    as_tibble() %>%
-    rename(token = .rownames,
-           similarity = unrowname.x.)
+    data.frame()
   
+  similarities <- tibble(row.names(similarities), similarities[,1])
+  names(similarities)=c('token', 'similarity')
+  
+  
+
   similarities %>%
     arrange(-similarity)    
 }
